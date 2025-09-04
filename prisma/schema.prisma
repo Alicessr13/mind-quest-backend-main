@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  user_id       String      @id @default(uuid())
+  created_at    DateTime    @default(now())
+  name          String
+  email         String      @unique
+  password_hash String
+  StudyPlan     StudyPlan[]
+
+  @@map("users")
+}
+
+enum Status {
+  Completed
+  Canceled
+  Waiting
+  InProgress
+  Overdue
+}
+
+model StudyPlan {
+  study_plan_id   Int      @id @default(autoincrement())
+  subject         String
+  status          Status   @default(Waiting)
+  start_date      DateTime
+  end_date        DateTime
+  week_days       Int[]
+  minutes_per_day Int
+  total_minutes   Int
+  user_id         String
+
+  user    User      @relation(fields: [user_id], references: [user_id])
+  Content Content[]
+}
+
+model Content {
+  content_id        Int    @id @default(autoincrement())
+  subject           String
+  status            Status @default(Waiting)
+  allocated_minutes Int
+  studied_minutes   Int    @default(0)
+  study_plan_id     Int
+
+  study_plan   StudyPlan      @relation(fields: [study_plan_id], references: [study_plan_id])
+  StudyPlanDay StudyPlanDay[]
+}
+
+model StudyPlanDay {
+  study_plan_day_id Int      @id @default(autoincrement())
+  date              DateTime
+  status            Status   @default(Waiting)
+  allocated_minutes Int
+  studied_minutes   Int      @default(0)
+  content_id        Int
+
+  content Content @relation(fields: [content_id], references: [content_id])
+}

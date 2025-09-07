@@ -22,7 +22,9 @@ app.register(fastifyJwt, {
 app.register(fastifyCookie);
 
 app.register(cors, {
-    origin: '*',
+    origin: true, // permite qualquer origem
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 });
 
 app.addHook('onResponse', logger);

@@ -14,12 +14,30 @@ datasource db {
 }
 
 model User {
-  user_id       String      @id @default(uuid())
-  created_at    DateTime    @default(now())
-  name          String
-  email         String      @unique
-  password_hash String
-  StudyPlan     StudyPlan[]
+  user_id             String      @id @default(uuid())
+  created_at          DateTime    @default(now())
+  name                String
+  email               String      @unique
+  password_hash       String
+  points              Int         @default(0)
+  body                Int         @default(1)
+  face                Int         @default(1)
+  skin_top            Int?
+  skin_bottom         Int?
+  shoes               Int?
+  hair                Int?
+  accessory           Int?
+  hand_accessory      Int?
+  item_body           Item        @relation("UserBody", fields: [body], references: [item_id])
+  item_face           Item        @relation("UserFace", fields: [face], references: [item_id])
+  item_skin_top       Item?       @relation("UserSkinTop", fields: [skin_top], references: [item_id])
+  item_skin_bottom    Item?       @relation("UserSkinBottom", fields: [skin_bottom], references: [item_id])
+  item_shoes          Item?       @relation("UserShoes", fields: [shoes], references: [item_id])
+  item_hair           Item?       @relation("UserHair", fields: [hair], references: [item_id])
+  item_accessory      Item?       @relation("UserAccessory", fields: [accessory], references: [item_id])
+  item_hand_accessory Item?       @relation("UserHandAccessory", fields: [hand_accessory], references: [item_id])
+  study_plans         StudyPlan[]
+  Inventory           Inventory[]
 
   @@map("users")
 }
@@ -55,8 +73,8 @@ model Content {
   studied_minutes   Int    @default(0)
   study_plan_id     Int
 
-  study_plan   StudyPlan      @relation(fields: [study_plan_id], references: [study_plan_id])
-  StudyPlanDay StudyPlanDay[]
+  study_plan     StudyPlan      @relation(fields: [study_plan_id], references: [study_plan_id])
+  study_plan_day StudyPlanDay[]
 }
 
 model StudyPlanDay {
@@ -68,4 +86,45 @@ model StudyPlanDay {
   content_id        Int
 
   content Content @relation(fields: [content_id], references: [content_id])
+}
+
+enum Slot {
+  Body
+  Face
+  SkinTop
+  SkinBottom
+  SkinTopAndBottom
+  Shoes
+  Hair
+  Accessory
+  HandAccessory
+}
+
+model Item {
+  item_id              Int         @id @default(autoincrement())
+  name                 String
+  description          String
+  price                Int
+  slot                 Slot
+  image_url            String
+  users_body           User[]      @relation("UserBody")
+  users_face           User[]      @relation("UserFace")
+  users_skin_top       User[]      @relation("UserSkinTop")
+  users_skin_bottom    User[]      @relation("UserSkinBottom")
+  users_shoes          User[]      @relation("UserShoes")
+  users_hair           User[]      @relation("UserHair")
+  users_accessory      User[]      @relation("UserAccessory")
+  users_hand_accessory User[]      @relation("UserHandAccessory")
+  Inventory            Inventory[]
+
+  @@map("items")
+}
+
+model Inventory {
+  inventory_id Int    @id @default(autoincrement())
+  user_id      String
+  item_id      Int
+
+  user User @relation(fields: [user_id], references: [user_id])
+  item Item @relation(fields: [item_id], references: [item_id])
 }

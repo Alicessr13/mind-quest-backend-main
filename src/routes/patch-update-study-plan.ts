@@ -65,6 +65,14 @@ export async function patchStudyPlanDayProgress(request: FastifyRequest, reply: 
         },
     });
 
+    if (updatedContent.status === Status.Completed) {
+        const pointsEarned = Math.floor(updatedContent.allocated_minutes / 10);
+        await prisma.user.update({
+            where: { user_id: request.user.user_id },
+            data: { points: { increment: pointsEarned } },
+        });
+    }
+
     return reply.status(200).send({
         message: "Progresso atualizado com sucesso",
         studyPlanDay: updatedDay,

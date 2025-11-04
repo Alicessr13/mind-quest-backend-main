@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "users" ALTER COLUMN "body" SET DEFAULT 1,
+ALTER COLUMN "face" SET DEFAULT 1;

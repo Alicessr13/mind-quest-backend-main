@@ -9,6 +9,10 @@ import { getStudyPlanById } from "./get-study-plan-by-id";
 import { getDailyStudyPlan } from "./get-daily-study-plan";
 import { patchStudyPlanDayProgress } from "./patch-update-study-plan";
 import { getUser } from "./get-user";
+import { postBuyItem } from "./post-buy-item";
+import { postEquipItem } from "./post-equip-item";
+import { getAllItems } from "./get-all-itens";
+import { postUnequipItem } from "./post-unequip-item";
 
 export async function routes(fastify: FastifyInstance) {
     fastify.get('/check', (_req, rep) => {
@@ -24,4 +28,8 @@ export async function routes(fastify: FastifyInstance) {
     fastify.get('/study-plan/:id', { preHandler: validateToken }, getStudyPlanById);
     fastify.get('/study-plan/daily', { preHandler: validateToken }, getDailyStudyPlan);
     fastify.patch('/study-plan-day/:id/progress', { preHandler: validateToken }, patchStudyPlanDayProgress);
+    fastify.get('/items', { preHandler: validateToken }, getAllItems);
+    fastify.post('/users/:user_id/buy', { preHandler: validateToken }, postBuyItem);
+    fastify.post('/users/:user_id/equip', { preHandler: validateToken }, postEquipItem);
+    fastify.post('/users/:user_id/unequip', { preHandler: validateToken }, postUnequipItem);
 }

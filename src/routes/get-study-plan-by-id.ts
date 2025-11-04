@@ -18,7 +18,7 @@ export async function getStudyPlanById(request: FastifyRequest, reply: FastifyRe
         include: {
             Content: {
                 include: {
-                    StudyPlanDay: true,
+                    study_plan_day: true,
                 },
             },
         },

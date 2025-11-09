@@ -13,6 +13,7 @@ import { postBuyItem } from "./post-buy-item";
 import { postEquipItem } from "./post-equip-item";
 import { getAllItems } from "./get-all-itens";
 import { postUnequipItem } from "./post-unequip-item";
+import { deleteStudyPlan } from "./delete-study-plan";
 
 export async function routes(fastify: FastifyInstance) {
     fastify.get('/check', (_req, rep) => {
@@ -32,4 +33,5 @@ export async function routes(fastify: FastifyInstance) {
     fastify.post('/users/:user_id/buy', { preHandler: validateToken }, postBuyItem);
     fastify.post('/users/:user_id/equip', { preHandler: validateToken }, postEquipItem);
     fastify.post('/users/:user_id/unequip', { preHandler: validateToken }, postUnequipItem);
+    fastify.delete('/study-plan/:id', { preHandler: validateToken }, deleteStudyPlan); 
 }

@@ -81,6 +81,7 @@ model StudyPlanDay {
     study_plan_day_id Int      @id @default(autoincrement())
     date              DateTime
     status            Status   @default(Waiting)
+    description       String   @default("")
     allocated_minutes Int
     studied_minutes   Int      @default(0)
     content_id        Int

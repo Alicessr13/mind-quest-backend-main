@@ -9,11 +9,15 @@ export async function getAllStudyPlans(request: FastifyRequest, reply: FastifyRe
         select: {
             study_plan_id: true,
             subject: true,
+            status: true, // ADICIONADO
             start_date: true,
             end_date: true,
             week_days: true,
             minutes_per_day: true,
             total_minutes: true,
+        },
+        orderBy: {
+            start_date: 'desc', // Mais recentes primeiro
         },
     });
 

@@ -18,14 +18,32 @@ export async function getStudyPlanById(request: FastifyRequest, reply: FastifyRe
         include: {
             Content: {
                 include: {
-                    study_plan_day: true,
+                    study_plan_day: {
+                        select: {
+                            study_plan_day_id: true,
+                            date: true,
+                            status: true, // ADICIONADO
+                            allocated_minutes: true,
+                            studied_minutes: true,
+                            description: true, // ADICIONADO - campo novo
+                            content_id: true,
+                        },
+                        orderBy: {
+                            date: 'asc', // Ordenar por data
+                        },
+                    },
+                },
+                orderBy: {
+                    content_id: 'asc', // Manter ordem de criação
                 },
             },
         },
     });
 
     if (!studyPlan) {
-        return reply.status(404).send({ message: "Plano de estudo não encontrado" });
+        return reply.status(404).send({ 
+            message: "Plano de estudo não encontrado" 
+        });
     }
 
     return reply.status(200).send(studyPlan);

@@ -85,7 +85,7 @@ export async function generateDailyDescription(params: {
         messages: [
             {
                 role: "system",
-                content: `Você é um **assistente inteligente** especializado em criar descrições diarias de estudo. Sua missão eh **gerar descrições de estudos conciso e prático**, focado em entregar instruções de estudo **diversificadas e de alto valor**.
+                content: `Você é um **assistente inteligente** especializado em criar descrições diarias de estudo. Sua missão eh **gerar descrições de estudos curtas e práticas**, **de forma concisa e prática**, focado em entregar instruções de estudo **diversificadas e de alto valor**.
 
 **Regras estritas:**
 1.  **Objetividade:** Mantenha a descrição concisa, direta e clara.

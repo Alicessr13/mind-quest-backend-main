@@ -25,6 +25,8 @@ const bodySchema = z.object({
     minutes_per_day: z.number().positive(),
 });
 
+// Função postStudyPlan refatorada para paralelismo:
+
 export async function postStudyPlan(request: FastifyRequest, reply: FastifyReply) {
     const { user_id } = request.user;
     const {
@@ -37,22 +39,45 @@ export async function postStudyPlan(request: FastifyRequest, reply: FastifyReply
 
     const days = differenceInDays(end_date, start_date);
 
-    // Calcular total de minutos e dias de estudo
+    // 1. Pré-cálculo do total de minutos
     let total_minutes = 0;
     let study_days_count = 0;
-
     for (let i = 0; i <= days; ++i) {
-        const currentDay = addDays(start_date, i);
-        if (week_days.has(currentDay.getDay())) {
+        if (week_days.has(addDays(start_date, i).getDay())) {
             total_minutes += minutes_per_day;
             study_days_count++;
         }
     }
 
-    // Gerar plano de estudos com a IA
     const aiResponse = await generateStudyPlan({ subject, total_minutes });
 
-    // Criar o plano de estudos
+    // 🚨 CORREÇÃO: Assegurar que o tempo total dos subtópicos não exceda o total_minutes
+    let current_total = 0;
+    const validated_subtopics = [];
+
+    for (const subtopic of aiResponse.subtopics) {
+        const remaining_minutes = total_minutes - current_total;
+
+        // Se não há mais tempo disponível (ou o tempo é insignificante), parar
+        if (remaining_minutes <= 0) {
+            break;
+        }
+
+        // Se o tempo alocado para este subtópico excede o tempo restante, trunca
+        if (current_total + subtopic.allocated_minutes > total_minutes) {
+            subtopic.allocated_minutes = remaining_minutes;
+        }
+
+        current_total += subtopic.allocated_minutes;
+        validated_subtopics.push(subtopic);
+    }
+
+    // Atualiza a resposta da IA com os subtópicos corrigidos
+    aiResponse.subtopics = validated_subtopics;
+    // Note: Se current_total for menor que total_minutes, a IA não usou todo o tempo,
+    // mas é um problema menor do que exceder. Você pode forçar a IA a preencher o tempo no prompt se for crucial.
+
+    // 3. Salvar Plano e Conteúdos (em lote)
     const { study_plan_id } = await prisma.studyPlan.create({
         select: { study_plan_id: true },
         data: {
@@ -66,7 +91,7 @@ export async function postStudyPlan(request: FastifyRequest, reply: FastifyReply
         },
     });
 
-    // Criar os conteúdos (subtópicos)
+    // Usar createMany para salvar conteúdos em lote
     const contents = await prisma.content.createManyAndReturn({
         data: aiResponse.subtopics.map(subtopic => ({
             subject: subtopic.name,
@@ -75,46 +100,48 @@ export async function postStudyPlan(request: FastifyRequest, reply: FastifyReply
         })),
     });
 
-    // LÓGICA CORRIGIDA: Distribuir conteúdos pelos dias
+    // 4. Coletar todas as chamadas de IA (PARALELISMO)
     let content_index = 0;
     let current_day_number = 0;
     let minutes_remaining_in_current_content = contents[0]?.allocated_minutes || 0;
 
+    const dailyCallPromises: Promise<{
+        date: Date;
+        content_id: number;
+        allocated_minutes: number;
+        dailyDesc: { description: string; key_points: string[]; suggested_activities: string[] };
+    }>[] = [];
+
     for (let i = 0; i <= days; ++i) {
         const current_day = addDays(start_date, i);
 
-        // Pular dias que não são dias de estudo
         if (!week_days.has(current_day.getDay())) {
             continue;
         }
 
         current_day_number++;
 
-        // Se já processamos todos os conteúdos, parar
         if (content_index >= contents.length) {
             break;
         }
 
         let minutes_left_today = minutes_per_day;
 
-        // Enquanto houver tempo disponível neste dia
         while (minutes_left_today > 0 && content_index < contents.length) {
             const current_content = contents[content_index];
             const current_subtopic = aiResponse.subtopics[content_index];
 
-            // Se este é um novo conteúdo, resetar os minutos restantes
             if (minutes_remaining_in_current_content === 0) {
                 minutes_remaining_in_current_content = current_content.allocated_minutes;
             }
 
-            // Calcular quanto tempo alocar neste dia para este conteúdo
             const minutes_to_allocate = Math.min(
                 minutes_left_today,
                 minutes_remaining_in_current_content
             );
 
-            // Gerar descrição personalizada para este dia
-            const dailyDesc = await generateDailyDescription({
+            // Adiciona a chamada de IA (promessa) para execução posterior
+            const dailyDescPromise = generateDailyDescription({
                 subject: aiResponse.subject,
                 subtopic: current_subtopic.name,
                 allocated_minutes: minutes_to_allocate,
@@ -123,10 +150,30 @@ export async function postStudyPlan(request: FastifyRequest, reply: FastifyReply
                 learning_objectives: current_subtopic.learning_objectives,
                 is_first_day: current_day_number === 1,
                 is_last_day: current_day_number === study_days_count,
-            });
+            }).then(dailyDesc => ({
+                date: current_day,
+                content_id: current_content.content_id,
+                allocated_minutes: minutes_to_allocate,
+                dailyDesc,
+            }));
 
-            // Formatar descrição completa
-            const full_description = `${dailyDesc.description}
+            dailyCallPromises.push(dailyDescPromise);
+
+            minutes_left_today -= minutes_to_allocate;
+            minutes_remaining_in_current_content -= minutes_to_allocate;
+
+            if (minutes_remaining_in_current_content === 0) {
+                content_index++;
+            }
+        }
+    }
+
+    // 5. Executar todas as chamadas de descrição diária em PARALELO!
+    const results = await Promise.all(dailyCallPromises);
+
+    // 6. Salvar todos os dias de estudo no banco de dados em LOTE
+    const studyDaysData = results.map(({ date, content_id, allocated_minutes, dailyDesc }) => {
+        const full_description = `${dailyDesc.description}
 
 📌 Pontos-chave:
 ${dailyDesc.key_points.map((point, idx) => `${idx + 1}. ${point}`).join('\n')}
@@ -134,26 +181,17 @@ ${dailyDesc.key_points.map((point, idx) => `${idx + 1}. ${point}`).join('\n')}
 💡 Atividades sugeridas:
 ${dailyDesc.suggested_activities.map((activity, idx) => `${idx + 1}. ${activity}`).join('\n')}`;
 
-            // Criar dia do plano de estudos
-            await prisma.studyPlanDay.create({
-                data: {
-                    allocated_minutes: minutes_to_allocate,
-                    date: current_day,
-                    description: full_description,
-                    content_id: current_content.content_id,
-                },
-            });
+        return {
+            allocated_minutes,
+            date,
+            description: full_description,
+            content_id,
+        };
+    });
 
-            // Atualizar contadores
-            minutes_left_today -= minutes_to_allocate;
-            minutes_remaining_in_current_content -= minutes_to_allocate;
-
-            // Se terminamos este conteúdo, avançar para o próximo
-            if (minutes_remaining_in_current_content === 0) {
-                content_index++;
-            }
-        }
-    }
+    await prisma.studyPlanDay.createMany({
+        data: studyDaysData,
+    });
 
     return reply.status(201).send({ study_plan_id });
 }

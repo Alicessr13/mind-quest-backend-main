@@ -42,6 +42,8 @@ Suas responsabilidades:
 - Definir objetivos de aprendizado claros para cada subtópico
 - Seguir uma progressão do básico ao avançado
 
+**REGRA CRÍTICA DE GRANULARIDADE:** Nenhum subtópico individual deve ter 'allocated_minutes' superior a **90 minutos**. Se um tópico for complexo e exigir mais tempo, você deve dividi-lo em partes sequenciais (ex: 'Introdução aos Hooks - Parte 1', 'Introdução aos Hooks - Parte 2').
+
 Use TODO o tempo disponível (${prompt.total_minutes} minutos) de forma inteligente.`,
             },
             {
@@ -83,31 +85,37 @@ export async function generateDailyDescription(params: {
         messages: [
             {
                 role: "system",
-                content: `Você é um tutor educacional que cria descrições motivadoras e práticas para sessões de estudo diárias.
+                content: `Você é um **assistente inteligente** especializado em criar descrições diarias de estudo. Sua missão eh **gerar descrições de estudos conciso e prático**, focado em entregar instruções de estudo **diversificadas e de alto valor**.
 
-Suas descrições devem:
-- Ser inspiradoras e motivacionais
-- Explicar claramente o que será estudado
-- Incluir pontos-chave a serem dominados
-- Sugerir atividades práticas e técnicas de estudo
-- Adaptar o tom ao progresso do aluno (início, meio ou fim do plano)`,
+**Regras estritas:**
+1.  **Objetividade:** Mantenha a descrição concisa, direta e clara.
+2.  **Foco em Ação e Profundidade:** A descrição deve focar no valor, importância e aplicação do subtópico de hoje, **mas com foco na seção que cabe no tempo disponível hoje.**
+3.  **Variação de Atividades:** As "suggested_activities" devem variar a cada dia (ex: Análise de Caso, Resumo, Mapeamento Mental, Simulação, Mini-Projeto, Debate, etc.).
+4.  **Adaptação ao Progresso:**
+    * **Início do Plano:** Focar em **conceitos chave** e **configuração de base**.
+    * **Meio do Plano:** Focar em **conexões entre subtópicos**, **resolução de problemas** e **aprofundamento**.
+    * **Fim do Plano:** Focar em **revisão estratégica**, **aplicações complexas** e **simulação de teste**.
+5.  **Diferenciação Diária (Crucial):** Se for a primeira vez que um subtópico está sendo coberto, foque na introdução. Se este subtópico foi estudado em dias anteriores (o que pode ser deduzido se o tempo alocado for uma fração do total), foque estritamente no **próximo bloco de informação** e em **atividades de retenção** do que foi visto no dia anterior.
+
+Gere apenas a estrutura JSON pedida.`,
             },
             {
                 role: "user",
-                content: `Crie uma descrição detalhada para esta sessão de estudo:
+                content: `Gere uma descrição, pontos-chave e atividades sugeridas para a sessão de estudo de hoje.
 
 Contexto:
 - Tópico geral: ${params.subject}
 - Subtópico de hoje: ${params.subtopic}
 - Tempo disponível: ${params.allocated_minutes} minutos
-- Dia ${params.day_number} de ${params.total_days}
-${params.is_first_day ? "- É o PRIMEIRO dia do plano!" : ""}
-${params.is_last_day ? "- É o ÚLTIMO dia do plano!" : ""}
+- Progresso: Dia ${params.day_number} de ${params.total_days}
+${params.is_first_day ? " - Este é o **INÍCIO** do seu plano, priorize a base conceitual." : ""}
+${params.is_last_day ? " - Este é o **FIM** do seu plano, priorize a aplicação e revisão final." : ""}
+${!params.is_first_day && !params.is_last_day ? " - Este é o **MEIO** do seu plano, priorize a conexão entre temas e profundidade." : ""}
 
-Objetivos de aprendizado:
+Objetivos de aprendizado a serem alcançados:
 ${params.learning_objectives.map((obj, i) => `${i + 1}. ${obj}`).join('\n')}
 
-Crie uma descrição que motive o estudante e forneça direcionamento claro sobre o que fazer.`,
+**Cumpra as regras de adaptação ao progresso e varie as atividades sugeridas.**`,
             },
         ],
         response_format: zodResponseFormat(dailyDescriptionSchema, "daily_description"),

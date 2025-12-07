@@ -8,7 +8,6 @@ const openai = new OpenAI({
     apiKey: env.OPENAI_API_KEY,
 });
 
-// Schema para o plano de estudos inicial
 const studyPlanSchema = z.object({
     subject: z.string(),
     subtopics: z.array(z.object({
@@ -18,7 +17,6 @@ const studyPlanSchema = z.object({
     })),
 });
 
-// Schema para descrição diária
 const dailyDescriptionSchema = z.object({
     description: z.string(),
     key_points: z.array(z.string()),
@@ -30,7 +28,7 @@ export async function generateStudyPlan(prompt: {
     total_minutes: number;
 }) {
     const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.1-nano',
         messages: [
             {
                 role: "system",
@@ -42,9 +40,13 @@ Suas responsabilidades:
 - Definir objetivos de aprendizado claros para cada subtópico
 - Seguir uma progressão do básico ao avançado
 
-**REGRA CRÍTICA DE GRANULARIDADE:** Nenhum subtópico individual deve ter 'allocated_minutes' superior a **90 minutos**. Se um tópico for complexo e exigir mais tempo, você deve dividi-lo em partes sequenciais (ex: 'Introdução aos Hooks - Parte 1', 'Introdução aos Hooks - Parte 2').
+**REGRAS CRÍTICAS:**
+1. Nenhum subtópico individual deve ter 'allocated_minutes' superior a 90 minutos
+2. Se um tópico for complexo, divida-o em partes sequenciais (ex: 'Parte 1', 'Parte 2')
+3. A soma EXATA de todos os 'allocated_minutes' DEVE ser igual a ${prompt.total_minutes} minutos
+4. Use TODO o tempo disponível sem exceder ou faltar minutos
 
-Use TODO o tempo disponível (${prompt.total_minutes} minutos) de forma inteligente.`,
+**IMPORTANTE**: Crie subtópicos suficientes para usar EXATAMENTE ${prompt.total_minutes} minutos.`,
             },
             {
                 role: "user",
@@ -53,7 +55,7 @@ Use TODO o tempo disponível (${prompt.total_minutes} minutos) de forma intelige
 Tópico: ${prompt.subject}
 Tempo total disponível: ${prompt.total_minutes} minutos
 
-Divida em subtópicos sequenciais que cobrem desde conceitos fundamentais até aplicações práticas.`,
+A soma dos allocated_minutes de TODOS os subtópicos deve ser EXATAMENTE ${prompt.total_minutes} minutos.`,
             },
         ],
         response_format: zodResponseFormat(studyPlanSchema, "study_plan"),
@@ -66,6 +68,22 @@ Divida em subtópicos sequenciais que cobrem desde conceitos fundamentais até a
     const parsed = studyPlanSchema.parse(
         JSON.parse(completion.choices[0].message.content)
     );
+
+    // Validar e ajustar para garantir que o total seja exato
+    const totalAllocated = parsed.subtopics.reduce((sum, st) => sum + st.allocated_minutes, 0);
+    const difference = prompt.total_minutes - totalAllocated;
+
+    if (difference !== 0) {
+        // Ajustar o último subtópico para compensar a diferença
+        const lastSubtopic = parsed.subtopics[parsed.subtopics.length - 1];
+        if (lastSubtopic) {
+            lastSubtopic.allocated_minutes += difference;
+            // Garantir que não fique negativo
+            if (lastSubtopic.allocated_minutes < 10) {
+                lastSubtopic.allocated_minutes = 10;
+            }
+        }
+    }
 
     return parsed;
 }
@@ -81,41 +99,34 @@ export async function generateDailyDescription(params: {
     is_last_day: boolean;
 }) {
     const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.1-nano',
         messages: [
             {
                 role: "system",
-                content: `Você é um **assistente inteligente** especializado em criar descrições diarias de estudo. Sua missão eh **gerar descrições de estudos curtas e práticas**, **de forma concisa e prática**, focado em entregar instruções de estudo **diversificadas e de alto valor**.
+                content: `Você é um assistente especializado em criar descrições diárias de estudo curtas e concisas e práticas.
 
-**Regras estritas:**
-1.  **Objetividade:** Mantenha a descrição concisa, direta e clara.
-2.  **Foco em Ação e Profundidade:** A descrição deve focar no valor, importância e aplicação do subtópico de hoje, **mas com foco na seção que cabe no tempo disponível hoje.**
-3.  **Variação de Atividades:** As "suggested_activities" devem variar a cada dia (ex: Análise de Caso, Resumo, Mapeamento Mental, Simulação, Mini-Projeto, Debate, etc.).
-4.  **Adaptação ao Progresso:**
-    * **Início do Plano:** Focar em **conceitos chave** e **configuração de base**.
-    * **Meio do Plano:** Focar em **conexões entre subtópicos**, **resolução de problemas** e **aprofundamento**.
-    * **Fim do Plano:** Focar em **revisão estratégica**, **aplicações complexas** e **simulação de teste**.
-5.  **Diferenciação Diária (Crucial):** Se for a primeira vez que um subtópico está sendo coberto, foque na introdução. Se este subtópico foi estudado em dias anteriores (o que pode ser deduzido se o tempo alocado for uma fração do total), foque estritamente no **próximo bloco de informação** e em **atividades de retenção** do que foi visto no dia anterior.
-
-Gere apenas a estrutura JSON pedida.`,
+**Regras:**
+1. Objetividade: Descrição concisa, direta e clara (máximo 3-4 frases)
+2. Foco em Ação: Instruções práticas sobre o que estudar hoje
+3. Variação: Sugira diferentes tipos de atividades (Análise, Resumo, Mapa Mental, Projeto, etc)
+4. Adaptação ao Progresso:
+   - Início: Conceitos fundamentais
+   - Meio: Conexões e aprofundamento
+   - Fim: Revisão e aplicação prática`,
             },
             {
                 role: "user",
-                content: `Gere uma descrição, pontos-chave e atividades sugeridas para a sessão de estudo de hoje.
+                content: `Gere uma descrição breve para a sessão de hoje:
 
-Contexto:
-- Tópico geral: ${params.subject}
-- Subtópico de hoje: ${params.subtopic}
-- Tempo disponível: ${params.allocated_minutes} minutos
-- Progresso: Dia ${params.day_number} de ${params.total_days}
-${params.is_first_day ? " - Este é o **INÍCIO** do seu plano, priorize a base conceitual." : ""}
-${params.is_last_day ? " - Este é o **FIM** do seu plano, priorize a aplicação e revisão final." : ""}
-${!params.is_first_day && !params.is_last_day ? " - Este é o **MEIO** do seu plano, priorize a conexão entre temas e profundidade." : ""}
+- Tópico: ${params.subject}
+- Subtópico: ${params.subtopic}
+- Tempo: ${params.allocated_minutes} minutos
+- Progresso: Dia ${params.day_number}/${params.total_days}
+${params.is_first_day ? "- INÍCIO do plano (foque em fundamentos)" : ""}
+${params.is_last_day ? "- FIM do plano (foque em revisão e aplicação)" : ""}
 
-Objetivos de aprendizado a serem alcançados:
-${params.learning_objectives.map((obj, i) => `${i + 1}. ${obj}`).join('\n')}
-
-**Cumpra as regras de adaptação ao progresso e varie as atividades sugeridas.**`,
+Objetivos:
+${params.learning_objectives.map((obj, i) => `${i + 1}. ${obj}`).join('\n')}`,
             },
         ],
         response_format: zodResponseFormat(dailyDescriptionSchema, "daily_description"),
@@ -128,6 +139,6 @@ ${params.learning_objectives.map((obj, i) => `${i + 1}. ${obj}`).join('\n')}
     const parsed = dailyDescriptionSchema.parse(
         JSON.parse(completion.choices[0].message.content)
     );
-
+    console.log('Generated daily description:', parsed);
     return parsed;
 }

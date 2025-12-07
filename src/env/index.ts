@@ -4,6 +4,7 @@ const env_schema = z.object({
     DATABASE_URL: z.string().url(),
     JWT_SECRET: z.string(),
     OPENAI_API_KEY: z.string(),
+    GEMINI_API_KEY: z.string().optional(),
 });
 
 const env_parse = env_schema.safeParse(process.env);

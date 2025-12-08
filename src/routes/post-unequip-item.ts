@@ -16,10 +16,10 @@ export async function postUnequipItem(request: FastifyRequest, reply: FastifyRep
 
   switch (slot) {
     case Slot.Body:
-      updateData.body = 1; // volta pro default
+      updateData.body = null;
       break;
     case Slot.Face:
-      updateData.face = 1;
+      updateData.face = null;
       break;
     case Slot.SkinTop:
       updateData.skin_top = null;

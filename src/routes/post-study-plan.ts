@@ -1,6 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { addDays, differenceInDays } from "date-fns";
+import { addDays, differenceInDays, startOfDay } from "date-fns";
 import { generateStudyPlan, generateDailyDescription } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
@@ -32,13 +32,13 @@ async function processBatch<T, R>(
     processor: (item: T) => Promise<R>
 ): Promise<R[]> {
     const results: R[] = [];
-    
+
     for (let i = 0; i < items.length; i += batchSize) {
         const batch = items.slice(i, i + batchSize);
         const batchResults = await Promise.all(batch.map(processor));
         results.push(...batchResults);
     }
-    
+
     return results;
 }
 
@@ -52,7 +52,9 @@ export async function postStudyPlan(request: FastifyRequest, reply: FastifyReply
         minutes_per_day,
     } = bodySchema.parse(request.body);
 
-    const days = differenceInDays(end_date, start_date);
+    const start = startOfDay(start_date);
+    const end = startOfDay(end_date);
+    const days = differenceInDays(end, start);
 
     // 1. Calcular total de minutos e dias de estudo
     let total_minutes = 0;
@@ -60,7 +62,7 @@ export async function postStudyPlan(request: FastifyRequest, reply: FastifyReply
     const valid_study_dates: Date[] = [];
 
     for (let i = 0; i <= days; ++i) {
-        const current_date = addDays(start_date, i);
+        const current_date = addDays(start, i);
         if (week_days.has(current_date.getDay())) {
             total_minutes += minutes_per_day;
             study_days_count++;
@@ -153,7 +155,7 @@ export async function postStudyPlan(request: FastifyRequest, reply: FastifyReply
         5, // Processar 5 chamadas por vez
         async (task) => {
             const current_subtopic = aiResponse.subtopics[task.content_index];
-            
+
             const dailyDesc = await generateDailyDescription({
                 subject: aiResponse.subject,
                 subtopic: current_subtopic.name,
@@ -196,7 +198,7 @@ ${dailyDesc.suggested_activities.map((activity, idx) => `${idx + 1}. ${activity}
 
     console.log(`✅ ${studyDaysData.length} dias salvos no banco de dados`);
 
-    return reply.status(201).send({ 
+    return reply.status(201).send({
         study_plan_id,
         days_created: studyDaysData.length,
         expected_days: study_days_count,

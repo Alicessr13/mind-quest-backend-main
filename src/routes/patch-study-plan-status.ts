@@ -37,16 +37,24 @@ export async function patchStudyPlanStatus(request: FastifyRequest, reply: Fasti
     }
 
     const { content, ...studyPlanDay } = selectStudyPlanDay;
-    const studied_minutes = status === Status.Completed ? studyPlanDay.allocated_minutes : 0;
 
     // Atualiza o dia de estudo
-    await prisma.studyPlanDay.update({
-        where: { study_plan_day_id: id },
-        data: {
-            studied_minutes,
-            status,
-        },
-    });
+    if (status === Status.Completed) {
+        await prisma.studyPlanDay.update({
+            where: { study_plan_day_id: id },
+            data: {
+                studied_minutes: studyPlanDay.allocated_minutes,
+                status,
+            },
+        });
+    } else {
+        await prisma.studyPlanDay.update({
+            where: { study_plan_day_id: id },
+            data: {
+                status,
+            },
+        });
+    }
 
     // Atualiza o conteúdo vinculado
     const { _sum } = await prisma.studyPlanDay.aggregate({
